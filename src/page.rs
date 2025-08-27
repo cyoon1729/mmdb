@@ -101,18 +101,17 @@ pub struct WLeafNode {
 }
 
 pub struct PgnoGenerator {
-    curr_pgno: Cell<Pgno>,
+    pgno: Pgno,
 }
 
 impl PgnoGenerator {
-    fn create(curr_pgno: Pgno) -> Self {
-        PgnoGenerator { curr_pgno }
+    fn create(pgno: Pgno) -> Self {
+        PgnoGenerator { pgno }
     }
 
-    fn get_free(&self) -> Pgno {
-        let pgno = self.curr_pgno.get();
-        self.curr_pgno.set(self.curr_pgno + 1);
-        pgno
+    fn get_free(&mut self) -> Pgno {
+        self.pgno += 1;
+        self.pgno
     }
 }
 
@@ -315,15 +314,15 @@ impl<'a> LeafPage<'a> {
         Ok(())
     }
 
-    fn split(&self, pgno_generator: PgnoGenerator) -> Result<(LeafPage, LeafPage)>{
+    fn split(&self, pgno_generator: &mut PgnoGenerator) -> Result<(LeafPage, LeafPage)>{
         let (left_nodes, right_nodes) = self.nodes.split_at(self.nodes.len() / 2);
-        let left_page = Self::get_writeable_leaf_page(left_nodes, pgno_generator.get_free());
-        let right_page = Self::get_writeable_leaf_page(right_nodes, pgno_generator.get_free());
+        let left_page = Self::to_writeable_leaf_page(left_nodes, pgno_generator.get_free());
+        let right_page = Self::to_writeable_leaf_page(right_nodes, pgno_generator.get_free());
 
         Ok((left_page, right_page))
     }
 
-    fn get_writeable_leaf_page(nodes: &[LeafNode], pgno: Pgno) -> Self {
+    fn to_writeable_leaf_page(nodes: &[LeafNode], pgno: Pgno) -> Self {
         let writeable_nodes: Vec<LeafNode> = nodes.iter()
             .map(|node| match node {
                 LeafNode::Read(rn) => LeafNode::Write(WLeafNode { 
