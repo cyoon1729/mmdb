@@ -100,6 +100,23 @@ pub struct WLeafNode {
     value: Vec<u8>,
 }
 
+pub struct PgnoGenerator {
+    curr_pgno: Cell<Pgno>,
+}
+
+impl PgnoGenerator {
+    fn create(curr_pgno: Pgno) -> Self {
+        PgnoGenerator { curr_pgno }
+    }
+
+    fn get_free(&self) -> Pgno {
+        let pgno = self.curr_pgno.get();
+        self.curr_pgno.set(self.curr_pgno + 1);
+        pgno
+    }
+}
+
+
 impl fmt::Debug for LeafNode<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -298,13 +315,37 @@ impl<'a> LeafPage<'a> {
         Ok(())
     }
 
-    fn split(&self) -> Result<()>{
-        let _nodes_after_insert = match self.nodes.binary_search_by(|n| n.get_key().cmp(key)) {
-            Ok(idx) => todo!() 
-            Err(idx) =>  todo!()
-        };
+    fn split(&self, pgno_generator: PgnoGenerator) -> Result<(LeafPage, LeafPage)>{
+        let (left_nodes, right_nodes) = self.nodes.split_at(self.nodes.len() / 2);
+        let left_page = Self::get_writeable_leaf_page(left_nodes, pgno_generator.get_free());
+        let right_page = Self::get_writeable_leaf_page(right_nodes, pgno_generator.get_free());
 
-        Ok(())
+        Ok((left_page, right_page))
+    }
+
+    fn get_writeable_leaf_page(nodes: &[LeafNode], pgno: Pgno) -> Self {
+        let writeable_nodes: Vec<LeafNode> = nodes.iter()
+            .map(|node| match node {
+                LeafNode::Read(rn) => LeafNode::Write(WLeafNode { 
+                    flags: rn.flags,
+                    key_size: rn.key_size,
+                    data_size: rn.data_size,
+                    key: rn.key.to_vec(),
+                    value: rn.data.to_vec(),
+                }),
+                LeafNode::Write(_) => unreachable!(),
+            })
+        .collect::<Vec<LeafNode>>();
+        let total_size: usize = nodes.iter().map(|n| n.get_size()).sum();
+
+        LeafPage {
+            pgno,
+            pad: 0xBEEF,
+            flags: 0xBEEF,
+            lower: (U16_N * writeable_nodes.len()) as u16,
+            upper: (PAGE_SIZE - total_size) as u16,
+            nodes: writeable_nodes,
+        }
     }
 
     fn get_nodes(page: &Page) -> Vec<LeafNode> {

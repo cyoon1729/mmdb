@@ -6,6 +6,7 @@ pub type TxnId = u64;
 pub const PAGE_HEADER_SIZE: usize = 16;
 pub const PAGE_SIZE: usize = 4096;
 pub const USIZE_N: usize = std::mem::size_of::<usize>();
+pub const U16_N: usize = 2;
 pub const KEY_SIZE: usize = USIZE_N;
 pub const DATA_SIZE: usize = USIZE_N;
 
