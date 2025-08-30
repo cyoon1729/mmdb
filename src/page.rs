@@ -32,7 +32,7 @@ impl PartialOrd for Key {
 pub struct Page {
     pgno: Pgno,
     pad: u16,
-    flags: u16,
+    flags: PageFlag,
     lower: u16,
     upper: u16,
     data: [u8; PAGE_SIZE - PAGE_HEADER_SIZE],
@@ -174,6 +174,30 @@ impl fmt::Debug for BranchPage {
 }
 
 impl Page {
+    pub fn get_pgno(&self) -> Pgno {
+        self.pgno
+    }
+
+    pub fn get_pad(&self) -> u16 {
+        self.pad
+    }
+
+    pub fn get_flag(&self) -> PageFlag {
+        self.flags
+    }
+
+    pub fn get_lower(&self) -> u16 {
+        self.lower
+    }
+    
+    pub fn get_upper(&self) -> u16 {
+        self.upper
+    }
+
+    pub fn get_data(&self) -> &[u8] {
+        self.data;
+    }
+
     pub fn read_from_mmap(mmap: &Mmap, pgno: usize) -> Result<Self> {
         let start = pgno * PAGE_SIZE;
         let end = start + PAGE_SIZE;

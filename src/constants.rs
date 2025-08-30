@@ -1,3 +1,7 @@
+use bitflags::bitflags;
+use std::error::Error;
+use std::fmt;
+
 // type aliases
 pub type Pgno = u64;
 pub type TxnId = u64;
@@ -12,4 +16,45 @@ pub const DATA_SIZE: usize = USIZE_N;
 
 pub const MAX_PGNO: usize = usize::MAX;
 pub const MAGIC_NUMBER: u16 = 0xBEEF;
+
+
+// flags
+bitflags! {
+    #[repr(transparent)]
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub struct PageFlag: u16 {
+        const ALIVE = 1 << 0;
+        const DIRTY = 2 << 0;
+    }
+    
+    #[repr(transparent)]
+    #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+    pub struct NodeFlag: u16 {
+        const ALIVE = 1 << 0;
+        const DIRTY = 2 << 0;
+    }
+}
+
+// Errors
+pub enum DBError {
+    WriteLeafPageFailed
+}
+
+impl Error for DBError {}
+
+impl fmt::Debug for DBError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DBError::WriteLeafPageFailed => write!(f, "WriteLeafPageFailed")
+        }
+    }
+}
+
+impl fmt::Display for DBError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DBError::WriteLeafPageFailed => write!(f, "WriteLeafPageFailed"),
+        }
+    }
+}
 
