@@ -105,18 +105,6 @@ impl<'a> LeafPage<'a> {
         as_u16_slice(&data[..offsets_end])
     }
 
-    pub fn get(&self, key: &[u8]) -> Result<LeafNode, DBError> {
-        let offset_idx_or_error = match self.offsets.binary_search_by(|offset| {
-            let node = self.read_node_from_offset(*offset as usize);
-            node.get_key().cmp(key)
-        }) {
-            Ok(idx) => Ok(idx),
-            Err(_idx) => Err(DBError::KeyNotFound),
-        };
-
-        offset_idx_or_error.map(|offset| self.read_node_from_offset(offset))
-    }
-
     pub fn read_node_from_offset(&self, offset: usize) -> LeafNode {
         let flags = NodeFlag::from_bits(self.data.read_u16_le(offset).unwrap())
             .expect("Unrecognized node flags");
@@ -136,6 +124,21 @@ impl<'a> LeafPage<'a> {
             key,
             data,
         }
+    }
+
+    pub fn get(&self, key: &[u8]) -> Result<LeafNode, DBError> {
+        let offset_idx_or_error = match self.offsets.binary_search_by(|offset| {
+            let node = self.read_node_from_offset(*offset as usize);
+            node.get_key().cmp(key)
+        }) {
+            Ok(idx) => Ok(idx),
+            Err(_idx) => Err(DBError::KeyNotFound),
+        };
+
+        offset_idx_or_error.map(|idx| {
+            let offset = self.offsets[idx] as usize;
+            self.read_node_from_offset(offset)
+        })
     }
 
     pub fn can_insert(&self, new_node: LeafNode) -> bool {
@@ -170,7 +173,7 @@ impl<'a> LeafPage<'a> {
         for node in nodes.iter() {
             let node_bytes = node.pack();
             page_data_buf[upper - node_bytes.len()..upper].copy_from_slice(&node_bytes);
-            upper = upper - node_bytes.len();
+            upper -= node_bytes.len();
 
             let offset = (upper).to_le_bytes();
             page_data_buf[lower..lower + U16_N].copy_from_slice(&offset);
