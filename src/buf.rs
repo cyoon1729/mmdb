@@ -14,7 +14,7 @@ pub trait ByteBuf {
         let data = self.read_n_bytes(offset, 4)?;
         Some(u32::from_le_bytes(data.try_into().ok()?))
     }
-    
+
     fn read_u64_le(&self, offset: usize) -> Option<u64> {
         let data = self.read_n_bytes(offset, 8)?;
         Some(u64::from_le_bytes(data.try_into().ok()?))
@@ -41,4 +41,11 @@ impl ByteBuf for [u8] {
     fn read_n_bytes(&self, offset: usize, n: usize) -> Option<&[u8]> {
         self.get(offset..offset + n)
     }
+}
+
+pub fn as_u16_slice(buf: &[u8]) -> &[u16] {
+    assert!(buf.len() % 2 == 0, "slice length must be multiple of 2");
+
+    // buf must be aligned, and length should be even so no partial u16
+    unsafe { std::slice::from_raw_parts(buf.as_ptr() as *const u16, buf.len() / 2) }
 }
