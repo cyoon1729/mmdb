@@ -142,7 +142,7 @@ impl<'a> DataPage<'a> {
         remaining_space > new_node.get_size()
     }
 
-    pub fn insert(&self, key: &[u8], data: &[u8]) -> Result<Page, DBError> {
+    pub fn insert(&self, new_pgno: Pgno, key: &[u8], data: &[u8]) -> Result<Page, DBError> {
         let mut nodes: Vec<DataNode> = self
             .offsets
             .iter()
@@ -159,7 +159,22 @@ impl<'a> DataPage<'a> {
             }
         }
 
-        Ok(Self::write_new_page(self.pgno, &nodes))
+        Ok(Self::write_new_page(new_pgno, &nodes))
+    }
+
+    pub fn split(&self, pgno_left: Pgno, pgno_right: Pgno) -> Result<(Page, Page), DBError> {
+        let nodes: Vec<DataNode> = self
+            .offsets
+            .iter()
+            .map(|&offset| self.read_node_from_offset(offset as usize))
+            .collect();
+        let mid = nodes.len() / 2;
+        let (left, right) = nodes.split_at(mid);
+
+        let left_page = Self::write_new_page(pgno_left, left);
+        let right_page = Self::write_new_page(pgno_right, right);
+
+        Ok((left_page, right_page))
     }
 
     fn write_new_page(pgno: Pgno, nodes: &[DataNode]) -> Page {
@@ -201,7 +216,9 @@ mod tests {
 
         let test_key_values = generate_key_values(100);
         for (key, value) in &test_key_values {
-            page = leaf_page.insert(key.as_bytes(), value.as_bytes()).unwrap();
+            page = leaf_page
+                .insert(0, key.as_bytes(), value.as_bytes())
+                .unwrap();
             leaf_page = DataPage::from(&page).unwrap();
         }
 
@@ -212,13 +229,15 @@ mod tests {
     }
 
     #[test]
-    fn test_nodes_are_ordered() {
+    fn test_node_offsets_are_ordered() {
         let mut page = DataPage::write_new_page(0, &[]);
         let mut leaf_page = DataPage::from(&page).unwrap();
 
         let test_key_values = generate_key_values(100);
         for (key, value) in &test_key_values {
-            page = leaf_page.insert(key.as_bytes(), value.as_bytes()).unwrap();
+            page = leaf_page
+                .insert(0, key.as_bytes(), value.as_bytes())
+                .unwrap();
             leaf_page = DataPage::from(&page).unwrap();
         }
 
@@ -229,6 +248,11 @@ mod tests {
             .collect();
 
         assert!(is_sorted_by_key(&nodes));
+    }
+
+    #[test]
+    fn test_data_page_split() {
+        todo!()
     }
 
     fn generate_key_values(n: i32) -> HashMap<String, String> {
