@@ -46,6 +46,14 @@ impl fmt::Debug for DataNode<'_> {
     }
 }
 
+impl<'a> PartialEq for DataNode<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key && self.data == other.data
+    }
+}
+
+impl<'a> Eq for DataNode<'a> {}
+
 impl<'a> DataNode<'a> {
     fn from(key: &'a [u8], data: &'a [u8]) -> Self {
         DataNode {
@@ -58,9 +66,8 @@ impl<'a> DataNode<'a> {
     }
 
     pub fn pack(&self) -> Vec<u8> {
-        // flags (u16) + key_size (usize) + data_size (usize) + ...
+        // flags (u16) + key_size (usize) + data_size (usize) + key + data
         let mut buf = Vec::with_capacity(U16_N + USIZE_N * 2 + self.key.len() + self.data.len());
-
         buf.extend_from_slice(&self.flags.bits().to_le_bytes());
         buf.extend_from_slice(&self.key_size.to_le_bytes());
         buf.extend_from_slice(&self.data_size.to_le_bytes());
@@ -71,14 +78,6 @@ impl<'a> DataNode<'a> {
 
     fn get_size(&self) -> usize {
         self.key_size + self.data_size + 2 * USIZE_N + 2
-    }
-
-    fn get_key(&self) -> &[u8] {
-        self.key
-    }
-
-    fn get_data(&self) -> &[u8] {
-        self.data
     }
 }
 
@@ -122,10 +121,10 @@ impl<'a> DataPage<'a> {
         }
     }
 
-    pub fn get(&self, key: &[u8]) -> Result<DataNode<'_>, DBError> {
+    pub fn get_node(&self, key: &[u8]) -> Result<DataNode<'_>, DBError> {
         let offset_idx_or_error = match self.offsets.binary_search_by(|offset| {
             let node = self.read_node_from_offset(*offset as usize);
-            node.get_key().cmp(key)
+            node.key.cmp(key)
         }) {
             Ok(idx) => Ok(idx),
             Err(_idx) => Err(DBError::KeyNotFound),
@@ -135,6 +134,11 @@ impl<'a> DataPage<'a> {
             let offset = self.offsets[idx] as usize;
             self.read_node_from_offset(offset)
         })
+    }
+
+    pub fn get(&self, key: &[u8]) -> Result<&[u8], DBError> {
+        let maybe_node = self.get_node(key);
+        maybe_node.map(|res| res.data)
     }
 
     pub fn can_insert(&self, new_node: DataNode) -> bool {
@@ -148,7 +152,7 @@ impl<'a> DataPage<'a> {
             .iter()
             .map(|&offset| self.read_node_from_offset(offset as usize))
             .collect();
-        match nodes.binary_search_by(|n| n.get_key().cmp(key)) {
+        match nodes.binary_search_by(|n| n.key.cmp(key)) {
             Ok(idx) => {
                 // upsert
                 nodes[idx] = DataNode::from(key, data);
@@ -224,7 +228,7 @@ mod tests {
 
         for (key, value) in &test_key_values {
             let found_value = leaf_page.get(key.as_bytes()).unwrap();
-            assert_eq!(found_value.get_data(), value.as_bytes());
+            assert_eq!(found_value, value.as_bytes());
         }
     }
 
@@ -252,7 +256,38 @@ mod tests {
 
     #[test]
     fn test_data_page_split() {
-        todo!()
+        let mut page = DataPage::write_new_page(0, &[]);
+        let mut leaf_page = DataPage::from(&page).unwrap();
+
+        let test_key_values = generate_key_values(100);
+        for (key, value) in &test_key_values {
+            page = leaf_page
+                .insert(0, key.as_bytes(), value.as_bytes())
+                .unwrap();
+            leaf_page = DataPage::from(&page).unwrap();
+        }
+        let mut sorted_key_values: Vec<DataNode> = test_key_values.iter()
+            .map(|(k, v)| DataNode::from(k.as_bytes(), v.as_bytes()))
+            .collect();
+        sorted_key_values.sort_by(|n1, n2| n1.key.cmp(n2.key));
+        let (expected_left, expected_right) = sorted_key_values.split_at(sorted_key_values.len() / 2);
+
+        let (left_split, right_split) = leaf_page.split(0, 0).unwrap();
+        let left_page = DataPage::from(&left_split).unwrap();
+        let left_nodes = get_nodes(&left_page);
+        let right_page = DataPage::from(&right_split).unwrap();
+        let right_nodes = get_nodes(&right_page);
+
+        assert_eq!(left_nodes, expected_left);
+        assert_eq!(right_nodes, expected_right);
+    }
+
+    fn get_nodes<'a>(page: &'a DataPage) -> Vec<DataNode<'a>> {
+        page
+            .offsets
+            .iter()
+            .map(|offset| page.read_node_from_offset(*offset as usize))
+            .collect()
     }
 
     fn generate_key_values(n: i32) -> HashMap<String, String> {
