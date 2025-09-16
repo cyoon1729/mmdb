@@ -24,15 +24,15 @@ bitflags! {
     #[repr(transparent)]
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub struct PageFlag: u16 {
-        const ALIVE = 1 << 0;
-        const DIRTY = 2 << 0;
+        const ALIVE = 1;
+        const DIRTY = 2;
     }
 
     #[repr(transparent)]
     #[derive(Copy, Clone, Debug, Eq, PartialEq)]
     pub struct NodeFlag: u16 {
-        const ALIVE = 1 << 0;
-        const DIRTY = 2 << 0;
+        const ALIVE = 1;
+        const DIRTY = 2;
     }
 }
 

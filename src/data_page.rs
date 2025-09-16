@@ -141,12 +141,12 @@ impl<'a> DataPage<'a> {
         maybe_node.map(|res| res.data)
     }
 
-    pub fn can_insert(&self, new_node: DataNode) -> bool {
+    pub fn has_space(&self, new_node: DataNode) -> bool {
         let remaining_space = (self.upper - self.lower) as usize;
         remaining_space > new_node.get_size()
     }
 
-    pub fn insert(&self, new_pgno: Pgno, key: &[u8], data: &[u8]) -> Result<Page, DBError> {
+    pub fn put(&self, new_pgno: Pgno, key: &[u8], data: &[u8]) -> Result<Page, DBError> {
         let mut nodes: Vec<DataNode> = self
             .offsets
             .iter()
@@ -214,14 +214,14 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
-    fn test_inserts() {
+    fn test_puts() {
         let mut page = DataPage::write_new_page(0, &[]);
         let mut leaf_page = DataPage::from(&page).unwrap();
 
         let test_key_values = generate_key_values(100);
         for (key, value) in &test_key_values {
             page = leaf_page
-                .insert(0, key.as_bytes(), value.as_bytes())
+                .put(0, key.as_bytes(), value.as_bytes())
                 .unwrap();
             leaf_page = DataPage::from(&page).unwrap();
         }
@@ -240,7 +240,7 @@ mod tests {
         let test_key_values = generate_key_values(100);
         for (key, value) in &test_key_values {
             page = leaf_page
-                .insert(0, key.as_bytes(), value.as_bytes())
+                .put(0, key.as_bytes(), value.as_bytes())
                 .unwrap();
             leaf_page = DataPage::from(&page).unwrap();
         }
@@ -262,7 +262,7 @@ mod tests {
         let test_key_values = generate_key_values(100);
         for (key, value) in &test_key_values {
             page = leaf_page
-                .insert(0, key.as_bytes(), value.as_bytes())
+                .put(0, key.as_bytes(), value.as_bytes())
                 .unwrap();
             leaf_page = DataPage::from(&page).unwrap();
         }
